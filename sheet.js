@@ -2,6 +2,7 @@ const database = require('./database')
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const sheetId = '1hpZKlBfHz3iQBgGhZHtUwKTN0WMmpjdspUFzUaYVFcI'
 const appendSchemasToSheet = async (schema) => {
+  try {
     const doc = new GoogleSpreadsheet(sheetId);
     await doc.useServiceAccountAuth(require('./credentials.json'));
     await doc.getInfo()
@@ -18,6 +19,10 @@ const appendSchemasToSheet = async (schema) => {
                 results[i].is_nullable|| ''])
     }
     await firstSheet.addRows(rows)
+    console.log('Add data to sheet successfully')
+  } catch (error) {
+    console.log('Error adding data to sheet', error) 
+  }
 }
 
 module.exports = {
