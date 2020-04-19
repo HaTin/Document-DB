@@ -1,5 +1,5 @@
 const Knex = require('knex')
-const getDatabaseSchemas = async (schema, dbConfig) => {
+const getTables = async (schema, dbConfig) => {
     const result = await Knex(dbConfig)('information_schema.tables').join('information_schema.columns',function(){
         this.on('information_schema.tables.table_schema', '=', 'information_schema.columns.table_schema')
         .andOn('information_schema.tables.table_name','=','information_schema.columns.table_name')
@@ -16,7 +16,7 @@ const getDatabaseSchemas = async (schema, dbConfig) => {
 }
 
 module.exports = {
-    getDatabaseSchemas
+    getTables
 }
 
 

@@ -30,7 +30,6 @@ describe('Add tables to Google Sheet Test', function () {
         const resource = {values : [['1','2','3','4']]}
         sheetControllers.addSheet(sheets, {spreadsheetId, range, valueInputOption: 'USER_ENTERED', resource})
         .should.eventually.have.have.property('status').equal(200)
-        // console.log(response)
     });
     it('mergeData', () => {
         const queryData = [

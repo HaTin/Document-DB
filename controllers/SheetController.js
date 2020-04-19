@@ -1,15 +1,14 @@
-const database = require('./database')
-const keys = require('./credentials.json')
+const database = require('../database/database')
+const keys = require('../credentials.json')
 const {google} = require('googleapis')
 const fs = require('fs')
-const config = require('./config/connection')
 const scopes = ['https://www.googleapis.com/auth/spreadsheets'] // write and read
 const spreadsheetId = '1JoRTc_FyiGM51lO3xTaTyLOD1-TiEqlm91go8U7pp3A'
 const protectedRangeIdsFile = 'protectedRangeIds.json'
+const range = 'Sheet1'
 const exportSchemaToGoogleSheet = async (schema, dbConfig) => {
   try {
-  const range = 'Sheet1'
-  const client = await getAuthorizeClient()
+  const client = await getAuthorizeClient(keys.client_email,keys.private_key, scopes)
   const sheets = google.sheets({version: 'v4', auth: client})
   const data = await getSheetData(sheets, {spreadsheetId, range})  
   const result = await database.getTables(schema, dbConfig)
@@ -61,9 +60,9 @@ const exportSchemaToGoogleSheet = async (schema, dbConfig) => {
   }
 }
 
-const getAuthorizeClient = () => {  
+const getAuthorizeClient = (clientEmail, privateKey, scopes) => {  
   return new Promise((resolve, reject) => {
-    const client = new google.auth.JWT(keys.client_email,null,keys.private_key, scopes)
+    const client = new google.auth.JWT(clientEmail,null,privateKey, scopes)
     client.authorize((err, tokens) => {
       if(err) {
         console.log(err)
@@ -149,7 +148,7 @@ const saveDataToJsonFile = (data, fileName) => {
   return new Promise((resolve, reject) => {
     fs.writeFile(fileName, JSON.stringify(data) , 'utf-8',(err, data) => {
       if(err) reject(err)
-      resolve('done')
+      resolve(data)
     })
   })
 }
@@ -167,5 +166,15 @@ const readJsonFromFile = (fileName) => {
 
 // exportSchemaToGoogleSheet('dbo', config.mssqlConnection)
 module.exports = {
-  exportSchemaToGoogleSheet
+  exportSchemaToGoogleSheet,
+  readJsonFromFile,
+  saveDataToJsonFile,
+  updateBatch,
+  generateProtectedRangeRequest,
+  generateRemoveProtectedRangeRequest,
+  mergeData,
+  addSheet,
+  getAuthorizeClient,
+  getSheetData,
+  clearSheet
 }
