@@ -1,25 +1,61 @@
 const database = require('./database')
 const keys = require('./credentials.json')
 const {google} = require('googleapis')
-// const config = require('./config/connection')
+const fs = require('fs')
+const config = require('./config/connection')
 const scopes = ['https://www.googleapis.com/auth/spreadsheets'] // write and read
-const spreadsheetId = '1hpZKlBfHz3iQBgGhZHtUwKTN0WMmpjdspUFzUaYVFcI'
-
+const spreadsheetId = '1JoRTc_FyiGM51lO3xTaTyLOD1-TiEqlm91go8U7pp3A'
+const protectedRangeIdsFile = 'protectedRangeIds.json'
 const exportSchemaToGoogleSheet = async (schema, dbConfig) => {
   try {
   const range = 'Sheet1'
   const client = await getAuthorizeClient()
   const sheets = google.sheets({version: 'v4', auth: client})
   const data = await getSheetData(sheets, {spreadsheetId, range})  
-  const result = await database.getDatabaseSchemas(schema, dbConfig)
+  const result = await database.getTables(schema, dbConfig)
   const queryData = result.map(r => Object.values(r))
   const mergeResult = mergeData(queryData, data)
   const headers = ['Object Type', 'Object Name', 'Column Name', 'Data Type', 'Nullable', 'MiscInfo','Description','PIC']
   const values = [headers, ...mergeResult]
   const resource = {values}
   await clearSheet(sheets, {spreadsheetId, range})
-  const response = await addSheet(sheets, {spreadsheetId, range, valueInputOption: 'USER_ENTERED', resource})
-  return response
+  await addSheet(sheets, {spreadsheetId, range, valueInputOption: 'USER_ENTERED', resource})
+  const currentProtectedRangeIds = JSON.parse(await readJsonFromFile(protectedRangeIdsFile))
+  if(currentProtectedRangeIds.length){
+    const batchDeleteObjects = currentProtectedRangeIds.map(r => {
+      const request = generateRemoveProtectedRangeRequest(r.protectedRangeId)
+      return request
+    })
+    const batchDeleteRequest = {requests:batchDeleteObjects}
+    await updateBatch(sheets, {spreadsheetId, resource: batchDeleteRequest})
+  }  
+  const headerProtectedRangeRequest = generateProtectedRangeRequest({
+    sheetId: 0, 
+    startRowIndex:0,
+    endRowIndex: 1,
+    startColumnIndex: 0,
+    endColumnIndex: headers.length - 2,
+    description: 'Protecting Headers',
+    clientEmail: keys.client_email
+  })
+  const dataProtectedRangeRequest = generateProtectedRangeRequest({
+    sheetId: 0, 
+    startRowIndex:1,
+    endRowIndex: mergeResult.length + 1,
+    startColumnIndex: 0,
+    endColumnIndex: 6,
+    description: 'Protecting Uneditable Data',
+    clientEmail: keys.client_email
+  })
+  const batchUpdateRequest = {requests:[{...headerProtectedRangeRequest}, {...dataProtectedRangeRequest}]}
+  const batchUpdateResponse = await updateBatch(sheets, {spreadsheetId, resource: batchUpdateRequest})
+  const protectedRangeIds = batchUpdateResponse.data.replies.map(reply => {
+   const result = { protectedRangeId : reply.addProtectedRange.protectedRange.protectedRangeId}
+   return result;
+  })
+  const saveFileResponse = await saveDataToJsonFile(protectedRangeIds, protectedRangeIdsFile)
+  return saveFileResponse
+  // return response
   } catch (error) {
     console.log(error)
   }
@@ -58,6 +94,7 @@ const addSheet = async (sheets, {spreadsheetId, range, valueInputOption, resourc
   return response
 }
 
+// merge sheet data to query data and keep user's manual input
 const mergeData = (queryData, sheetData) => {
   if(!sheetData.length) return queryData
   const result = queryData.map(d => {
@@ -72,6 +109,63 @@ const mergeData = (queryData, sheetData) => {
   return result
 }
 
+const generateProtectedRangeRequest = ({sheetId, startRowIndex, endRowIndex, startColumnIndex, endColumnIndex, clientEmail, description}) => {
+  const request = {
+    addProtectedRange: {
+      protectedRange: {
+        range: {
+          sheetId,
+          startRowIndex,
+          endRowIndex,
+          startColumnIndex,
+          endColumnIndex,
+        },
+        description:  description,
+        warningOnly: false,
+        editors: {
+          users: [clientEmail]
+        }
+      }
+    }
+  }
+  return request
+}
+
+const generateRemoveProtectedRangeRequest = (protectedRangeId) => {
+  const request = {
+    deleteProtectedRange : {
+      protectedRangeId: protectedRangeId + ''
+    }
+  }
+  return request
+}
+
+const updateBatch = async (sheets, {spreadsheetId, resource}) => {
+  const response = await sheets.spreadsheets.batchUpdate({spreadsheetId, resource})
+  return response
+}
+
+const saveDataToJsonFile = (data, fileName) => {
+  return new Promise((resolve, reject) => {
+    fs.writeFile(fileName, JSON.stringify(data) , 'utf-8',(err, data) => {
+      if(err) reject(err)
+      resolve('done')
+    })
+  })
+}
+
+const readJsonFromFile = (fileName) => {
+  return new Promise((resolve, reject) => {
+    fs.readFile(fileName, 'utf-8',(err, data) => {
+      if(err) reject(err)
+      if(!data) resolve('[]')
+      resolve(data)      
+    })
+  })
+}
+
+
+// exportSchemaToGoogleSheet('dbo', config.mssqlConnection)
 module.exports = {
   exportSchemaToGoogleSheet
 }
