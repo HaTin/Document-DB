@@ -6,6 +6,8 @@ const scopes = ['https://www.googleapis.com/auth/spreadsheets'] // write and rea
 const spreadsheetId = '1JoRTc_FyiGM51lO3xTaTyLOD1-TiEqlm91go8U7pp3A'
 const protectedRangeIdsFile = 'protectedRangeIds.json'
 const range = 'Sheet1'
+
+// visit https://docs.google.com/spreadsheets/d/1JoRTc_FyiGM51lO3xTaTyLOD1-TiEqlm91go8U7pp3A/edit
 const exportSchemaToGoogleSheet = async (schema, dbConfig) => {
   try {
   const client = await getAuthorizeClient(keys.client_email,keys.private_key, scopes)
@@ -13,7 +15,9 @@ const exportSchemaToGoogleSheet = async (schema, dbConfig) => {
   const data = await getSheetData(sheets, {spreadsheetId, range})  
   const result = await database.getTables(schema, dbConfig)
   const queryData = result.map(r => Object.values(r))
-  const mergeResult = mergeData(queryData, data)
+  const queryMap = createMap(queryData, 1, 2)
+  const sheetMap = createMap(data, 1, 2)
+  const mergeResult = mergeMap(queryMap, sheetMap, 6, 7)
   const headers = ['Object Type', 'Object Name', 'Column Name', 'Data Type', 'Nullable', 'MiscInfo','Description','PIC']
   const values = [headers, ...mergeResult]
   const resource = {values}
@@ -91,6 +95,25 @@ const addSheet = async (sheets, {spreadsheetId, range, valueInputOption, resourc
     resource
   });
   return response
+}
+
+const createMap = (arr, firstIndex, secondIndex) => {
+  const map = new Map()
+  for(let i = 0 ; i < arr.length; i++){
+      map.set(`[${arr[i][firstIndex]},${arr[i][secondIndex]}]`, arr[i])
+  }
+  return map
+}
+
+const mergeMap = (queryMap, sheetMap, assignIndex1, assignIndex2) => {    
+  for(const [key,value] of queryMap){
+      const sheetMapValue = sheetMap.get(key)
+      if(sheetMapValue){
+          const assignValue = [...value,sheetMapValue[assignIndex1], sheetMapValue[assignIndex2]]
+          queryMap.set(key, assignValue)
+      }
+  }
+  return Array.from(queryMap.values())
 }
 
 // merge sheet data to query data and keep user's manual input
