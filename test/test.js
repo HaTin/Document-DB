@@ -31,6 +31,16 @@ describe('Add tables to Google Sheet Test', function () {
         sheetControllers.addSheet(sheets, {spreadsheetId, range, valueInputOption: 'USER_ENTERED', resource})
         .should.eventually.have.have.property('status').equal(200)
     });
+    it('createMap', () => {
+        const data = [
+            [1,2,3,4,5,5],
+            [2,5,3,1,7,2],
+            [6,4,5,4,2,1],
+        ]
+        const map = sheetControllers.createMap(data, 0, 1)
+        map.should.instanceOf(Map)
+        JSON.stringify(map.get('[1,2]')).should.equal(JSON.stringify([1,2,3,4,5,5]))
+    })
     it('mergeData', () => {
         const queryData = [
             [1,2,3,4,5,5],        
@@ -43,7 +53,9 @@ describe('Add tables to Google Sheet Test', function () {
             [6,6,3,4,2,6],
             [6,4,5,4,2,1,3,7],
         ]
-        const result = sheetControllers.mergeData(queryData, sheetData)
+        const queryMap = sheetControllers.createMap(queryData, 1, 2)
+        const sheetMap = sheetControllers.createMap(sheetData, 1, 2)
+        const result = sheetControllers.mergeMap(queryMap, sheetMap, 6, 7)        
         expect(result.length).is.equal(3)
         expect(result[2][6]).is.equal(3)
         expect(result[2][7]).is.equal(7)
